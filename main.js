@@ -73,23 +73,57 @@ async function main() {
 	scene.add( mesh );
     }
 
-    let trees
     {
 	const objLoader = new OBJLoader();
 	const mtlLoader = new MTLLoader();
 	mtlLoader.load('assets/trees/Tree.mtl', (mtl) => {
-	    //mtl.preload();
 	    objLoader.setMaterials(mtl);
-	    objLoader.load('assets/trees/Tree.obj', (root) => {
-		trees = root;
-		root.scale.multiplyScalar(4);
-		root.position.set(15, 0, -15);
-		scene.add(root);
-	    });
+	    for(let i = 0; i < 10; i++){
+		let x = (Math.random() * 100) - 50;
+		let z = (Math.random() * 100) - 50;
+		let scale = (Math.random() * 4) + 0.5;
+
+		objLoader.load('assets/trees/Tree.obj', (root) => {
+		    root.scale.multiplyScalar(scale);
+		    root.position.set(x, 0, z);
+		    scene.add(root);
+		});
+	    }
 	});
     }
+
+    {
+	for(let i = 0; i < 10; i++){
+	    let x = (Math.random() * 100) - 50;
+	    let z = (Math.random() * 100) - 50;
+	    let scale = (Math.random() * 2) + 0.2;
+
+	    const wood_tex = new THREE.TextureLoader().load( "wood.jpg" );
+	    const cylinderGeo = new THREE.CylinderGeometry(1, 1.5, 3, 10, 10);
+	
+	    const trunk = new THREE.Mesh( cylinderGeo, new THREE.MeshStandardMaterial({
+		map: wood_tex,
+	    }));
+	    trunk.position.set(x, scale, z);
+	    trunk.scale.multiplyScalar(scale);
+
+	    scene.add( trunk );
+
+	    const leaves_tex = new THREE.TextureLoader().load( "leaves.webp" );
+	    const coneGeo = new THREE.ConeGeometry( 2, 6, 32 );
+	    let thing = new THREE.MeshStandardMaterial( { map: leaves_tex } );
+	    const leaves = new THREE.Mesh( coneGeo, thing);
+	    leaves.position.set(x, (5*scale), z);
+	    leaves.scale.multiplyScalar(scale);
+
+	    scene.add( leaves );
+	    
+	}
+	
+    }
     
-    let eyeball;
+    let eyeball1;
+    let eyeball2;
     {
 	const objLoader = new OBJLoader();
 	const mtlLoader = new MTLLoader();
@@ -97,8 +131,15 @@ async function main() {
 	    //mtl.preload();
 	    objLoader.setMaterials(mtl);
 	    objLoader.load('assets/eyeball/eyeball.obj', (root) => {
-		eyeball = root;
-		root.position.set(0, 9, 0);
+		eyeball1 = root;
+		root.position.set(5, 31, -23);
+		root.scale.multiplyScalar(1.2);
+		scene.add(root);
+	    });
+	    objLoader.load('assets/eyeball/eyeball.obj', (root) => {
+		eyeball2 = root;
+		root.position.set(-5, 31, -23);
+		root.scale.multiplyScalar(1.2);
 		scene.add(root);
 	    });
 	});
@@ -158,12 +199,14 @@ async function main() {
 	    objLoader.setMaterials(mtl);
 	    objLoader.load('assets/skull/skull.obj', (root) => {
 		skull = root;
-		root.position.set(15, 12, 15);
+		root.position.set(0, 12, -25);
+		root.scale.multiplyScalar(5);
+		root.lookAt(-9, 12, 4);
 		scene.add(root);
 	    });
 	});
     };
-
+    
     let ambient_light = (() => {
 	const color = 0xFFFFFF;
 	const intensity = 2;
@@ -184,26 +227,36 @@ async function main() {
     }
 
 
-    let sun_light = (() => {
+    let sun_light;
+    {
 	const color = 0xFFFFFF;
 	const intensity = 400;
-	const light = new THREE.PointLight(color, intensity);
-	light.position.set(3, 20, 0 );
-	scene.add( light );
-    })();
+	sun_light = new THREE.PointLight(color, intensity);
+	sun_light.position.set(3, 20, 0);
+	scene.add( sun_light );
+    };
 
-    let sun = (() => {
+    let sun;
+    {
 	const sphereRadius = 3;
 	const sphereWidthDivisions = 32;
 	const sphereHeightDivisions = 16;
 	const sphereGeo = new THREE.SphereGeometry( sphereRadius, sphereWidthDivisions, sphereHeightDivisions );
 	const sphereMat = new THREE.MeshBasicMaterial( { color: '#FFFFAA' } );
-	const mesh = new THREE.Mesh( sphereGeo, sphereMat );
-	mesh.position.set(3, 20, 0 );
-	scene.add( mesh );
-    })();
+	sun = new THREE.Mesh( sphereGeo, sphereMat );
+	sun.position.set(3, 20, 0 );
+	scene.add( sun );
+    }
 
-    
+
+
+    while((eyeball1 == undefined) || (eyeball2 == undefined) || (skull == undefined)){
+	await new Promise(r => setTimeout(r, 100));
+    }
+
+    skull.attach(eyeball1);
+    skull.attach(eyeball2);
+
 
     function render(time) {
 	let seconds = time/1000;
@@ -228,8 +281,11 @@ async function main() {
 	    man.position.set(man_position[0], man_position[1], man_position[2]);
 	    man.rotation.y = percent * TAU;
 	}
-	if(eyeball){
-	    eyeball.lookAt(man_position[0], man_position[1], man_position[2]);
+	if(eyeball1){
+	    eyeball1.lookAt(man_position[0], man_position[1], man_position[2]);
+	}
+	if(eyeball2){
+	    eyeball2.lookAt(man_position[0], man_position[1], man_position[2]);
 	}
 	if(skull){
 	    skull.lookAt(man_position[0], man_position[1], man_position[2]);
@@ -237,6 +293,8 @@ async function main() {
 	if(chair){
 	    chair.rotation.z = 3*seconds;
 	}
+	sun_light.position.set(5*Math.sin(seconds), 20*Math.cos(seconds), 0);
+	sun.position.set(5*Math.sin(seconds), 20*Math.cos(seconds), 0);
 	
 	
 	renderer.render( scene, camera );
